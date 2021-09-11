@@ -5,7 +5,7 @@ use nom::{
         complete::{char, digit1 as digit, space0 as space},
         is_alphabetic, is_alphanumeric,
     },
-    combinator::{fail, map, map_res},
+    combinator::{fail, map, map_res, opt},
     multi::fold_many0,
     sequence::{delimited, pair},
     IResult,
@@ -20,6 +20,7 @@ pub enum Expression<'a> {
     Division(Box<Expression<'a>>, Box<Expression<'a>>),
     Addition(Box<Expression<'a>>, Box<Expression<'a>>),
     Subtraction(Box<Expression<'a>>, Box<Expression<'a>>),
+    Minus(Box<Expression<'a>>),
 }
 
 fn parens(i: &str) -> IResult<&str, Expression> {
@@ -63,19 +64,22 @@ fn term(i: &str) -> IResult<&str, Expression> {
 }
 
 pub fn expr(i: &str) -> IResult<&str, Expression> {
-    let (i, init) = term(i)?;
-
-    fold_many0(
-        pair(alt((char('+'), char('-'))), term),
-        move || init.clone(),
-        |acc, (op, expr)| {
-            if op == '+' {
-                Expression::Addition(Box::new(acc), Box::new(expr))
-            } else {
-                Expression::Subtraction(Box::new(acc), Box::new(expr))
-            }
-        },
-    )(i)
+    if let Ok((i, init)) = term(i) {
+        fold_many0(
+            pair(alt((char('+'), char('-'))), term),
+            move || init.clone(),
+            |acc, (op, expr)| {
+                if op == '+' {
+                    Expression::Addition(Box::new(acc), Box::new(expr))
+                } else {
+                    Expression::Subtraction(Box::new(acc), Box::new(expr))
+                }
+            },
+        )(i)
+    } else {
+        let (i, _) = delimited(space, char('-'), space)(i)?;
+        map(term, |expr| Expression::Minus(Box::new(expr)))(i)
+    }
 }
 
 #[cfg(test)]
@@ -195,6 +199,29 @@ mod test {
     #[test]
     fn parens_test() {
         assert_eq!(expr(" (  2 )"), Ok(("", Expression::Constant(2))));
+        assert_eq!(
+            expr(" ( -52 )"),
+            Ok(("", Expression::Minus(Box::new(Expression::Constant(52)))))
+        );
+        assert_eq!(
+            expr(" ( -var )"),
+            Ok(("", Expression::Minus(Box::new(Expression::Variable("var")))))
+        );
+        assert_eq!(
+            expr(" 4 * ( - var_name )  + 6"),
+            Ok((
+                "",
+                Expression::Addition(
+                    Box::new(Expression::Multiplication(
+                        Box::new(Expression::Constant(4)),
+                        Box::new(Expression::Minus(Box::new(Expression::Variable(
+                            "var_name"
+                        ))))
+                    )),
+                    Box::new(Expression::Constant(6)),
+                )
+            ))
+        );
         assert_eq!(
             expr(" 2* (  3 + 4 ) "),
             Ok((
