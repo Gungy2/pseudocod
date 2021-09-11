@@ -1,21 +1,23 @@
-use super::expression::{self, Expression};
+use super::expression::{expr, id, Expression};
 use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{char, line_ending, multispace0, space0, space1},
-    combinator::map,
-    multi::{many1, separated_list1},
-    sequence::{delimited, pair, preceded, terminated},
+    combinator::{cond, map},
+    error::ParseError,
+    multi::{count, many1, separated_list1},
+    sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
 };
 
-pub type Program<'a> = Vec<Instruction<'a>>;
+pub type Block<'a> = Vec<Instruction<'a>>;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Instruction<'a> {
     Read(Vec<&'a str>),
     Write(Expression<'a>),
     Assignment(&'a str, Expression<'a>),
+    If(Expression<'a>, Block<'a>),
 }
 
 fn read(i: &str) -> IResult<&str, Instruction> {
@@ -23,7 +25,7 @@ fn read(i: &str) -> IResult<&str, Instruction> {
         preceded(
             delimited(space0, tag("citeste"), space1),
             terminated(
-                separated_list1(delimited(space0, char(','), space0), expression::id),
+                separated_list1(delimited(space0, char(','), space0), id),
                 space0,
             ),
         ),
@@ -32,8 +34,9 @@ fn read(i: &str) -> IResult<&str, Instruction> {
 }
 
 fn write(i: &str) -> IResult<&str, Instruction> {
+    dbg!(i);
     map(
-        preceded(delimited(space0, tag("scrie"), space1), expression::expr),
+        preceded(delimited(space0, tag("scrie"), space1), expr),
         Instruction::Write,
     )(i)
 }
@@ -41,26 +44,47 @@ fn write(i: &str) -> IResult<&str, Instruction> {
 fn assignment(i: &str) -> IResult<&str, Instruction> {
     map(
         pair(
-            terminated(
-                preceded(space0, expression::id),
-                delimited(space0, tag("<-"), space0),
-            ),
-            expression::expr,
+            terminated(preceded(space0, id), delimited(space0, tag("<-"), space0)),
+            expr,
         ),
         |(id, expr)| Instruction::Assignment(id, expr),
     )(i)
 }
 
-fn instruction(i: &str) -> IResult<&str, Instruction> {
-    alt((read, write, assignment))(i)
+fn instruction<'a>(
+    indent: usize,
+) -> impl Fn(&'a str) -> IResult<&str, Instruction<'a>, nom::error::Error<&'a str>> {
+    move |i: &'a str| alt((read, write, assignment, if_instr(indent)))(i)
 }
 
-pub fn program(i: &str) -> IResult<&str, Program> {
-    delimited(
-        multispace0,
-        separated_list1(many1(delimited(space0, line_ending, space0)), instruction),
-        multispace0,
-    )(i)
+fn if_instr<'a>(
+    indent: usize,
+) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, nom::error::Error<&'a str>> {
+    map(
+        tuple((
+            tag("daca"),
+            expr,
+            tag("atunci"),
+            preceded(space0, block(indent + 1)),
+        )),
+        |(_, expr, _, block)| Instruction::If(expr, block),
+    )
+}
+
+fn block<'a>(
+    indent: usize,
+) -> impl FnMut(&'a str) -> IResult<&str, Block<'a>, nom::error::Error<&'a str>> {
+    many1(preceded(indentation(indent), instruction(indent)))
+}
+
+pub fn program(i: &str) -> IResult<&str, Block> {
+    block(0)(i)
+}
+
+fn indentation<'a>(
+    ident: usize,
+) -> impl FnMut(&'a str) -> IResult<&str, (), nom::error::Error<&'a str>> {
+    map(pair(line_ending, count(char(' '), 2 * ident)), |_| ())
 }
 
 #[cfg(test)]
@@ -164,12 +188,74 @@ mod test {
         );
     }
 
-    #[test_case("reads.pseudo", 
+    #[test]
+    fn if_test() {
+        assert_eq!(
+            if_instr(0)("daca 1 atunci \n  scrie 15"),
+            Ok((
+                "",
+                Instruction::If(
+                    Expression::Constant(1),
+                    vec![Instruction::Write(Expression::Constant(15))]
+                )
+            ))
+        );
+        assert_eq!(
+            if_instr(0)("daca 5 + 5 atunci \n  scrie 10\n  scrie 16"),
+            Ok((
+                "",
+                Instruction::If(
+                    Expression::Addition(
+                        Box::new(Expression::Constant(5)),
+                        Box::new(Expression::Constant(5))
+                    ),
+                    vec![
+                        Instruction::Write(Expression::Constant(10)),
+                        Instruction::Write(Expression::Constant(16))
+                    ]
+                )
+            ))
+        );
+        assert_eq!(
+            if_instr(0)("daca 1 atunci\n  daca 2 atunci\n    scrie 5\n    scrie 6"),
+            Ok((
+                "",
+                Instruction::If(
+                    Expression::Constant(1),
+                    vec![Instruction::If(
+                        Expression::Constant(2),
+                        vec![
+                            Instruction::Write(Expression::Constant(5)),
+                            Instruction::Write(Expression::Constant(6)),
+                        ]
+                    )]
+                )
+            ))
+        );
+        assert_eq!(
+            if_instr(0)("daca 1 atunci\n  daca 2 atunci\n    scrie 5\n  scrie 6"),
+            Ok((
+                "",
+                Instruction::If(
+                    Expression::Constant(1),
+                    vec![
+                        Instruction::If(
+                            Expression::Constant(2),
+                            vec![Instruction::Write(Expression::Constant(5)),]
+                        ),
+                        Instruction::Write(Expression::Constant(6)),
+                    ]
+                )
+            ))
+        );
+    }
+
+    #[test_case("reads.pseudo",
         vec![
-            Instruction::Read(vec!["a", "b"]), 
-            Instruction::Read(vec!["a", "c", "d"])] 
+            Instruction::Read(vec!["a", "b"]),
+            Instruction::Read(vec!["a", "c", "d"])]
     ; "simple read program")]
-    fn program_test(path: &str, result: Program) {
+    fn program_test(path: &str, result: Block) {
         assert_eq!(
             program(
                 &fs::read_to_string(Path::new("tests/resources").join(path))
