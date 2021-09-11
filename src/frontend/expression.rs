@@ -2,10 +2,10 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while},
     character::{
-        complete::{char, digit1 as digit, space0 as space},
+        complete::{char, digit1, space0},
         is_alphabetic, is_alphanumeric,
     },
-    combinator::{fail, map, map_res, opt},
+    combinator::{fail, map, map_res},
     multi::fold_many0,
     sequence::{delimited, pair},
     IResult,
@@ -14,7 +14,7 @@ use std::num::ParseIntError;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Expression<'a> {
-    Constant(i32),
+    Constant(u32),
     Variable(&'a str),
     Multiplication(Box<Expression<'a>>, Box<Expression<'a>>),
     Division(Box<Expression<'a>>, Box<Expression<'a>>),
@@ -24,24 +24,28 @@ pub enum Expression<'a> {
 }
 
 fn parens(i: &str) -> IResult<&str, Expression> {
-    delimited(space, delimited(tag("("), expr, tag(")")), space)(i)
+    delimited(space0, delimited(tag("("), expr, tag(")")), space0)(i)
 }
 
 fn factor(i: &str) -> IResult<&str, Expression> {
     alt((
         map_res::<_, _, _, _, ParseIntError, _, _>(
-            delimited(space, digit, space),
+            delimited(space0, digit1, space0),
             |num_str: &str| Ok(Expression::Constant(num_str.parse()?)),
         ),
-        map(delimited(space, id, space), |id: &str| {
+        map(delimited(space0, id, space0), |id: &str| {
             Expression::Variable(id)
         }),
         parens,
     ))(i)
 }
 
-fn id(i: &str) -> IResult<&str, &str> {
-    if !is_alphabetic(i.chars().next().unwrap() as u8) {
+pub fn id(i: &str) -> IResult<&str, &str> {
+    if let Some(chr) = i.chars().next() {
+        if !is_alphabetic(chr as u8) {
+            return fail(i);
+        }
+    } else {
         return fail(i);
     }
     take_while(|c| is_alphanumeric(c as u8) || (c as char == '_'))(i)
@@ -77,7 +81,7 @@ pub fn expr(i: &str) -> IResult<&str, Expression> {
             },
         )(i)
     } else {
-        let (i, _) = delimited(space, char('-'), space)(i)?;
+        let (i, _) = delimited(space0, char('-'), space0)(i)?;
         map(term, |expr| Expression::Minus(Box::new(expr)))(i)
     }
 }
@@ -85,6 +89,7 @@ pub fn expr(i: &str) -> IResult<&str, Expression> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn factor_test() {
