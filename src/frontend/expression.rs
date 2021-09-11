@@ -213,6 +213,19 @@ mod test {
             Ok(("", Expression::Minus(Box::new(Expression::Variable("var")))))
         );
         assert_eq!(
+            expr(" (a +  b ) - 3"),
+            Ok((
+                "",
+                Expression::Subtraction(
+                    Box::new(Expression::Addition(
+                        Box::new(Expression::Variable("a")),
+                        Box::new(Expression::Variable("b"))
+                    )),
+                    Box::new(Expression::Constant(3))
+                )
+            ))
+        );
+        assert_eq!(
             expr(" 4 * ( - var_name )  + 6"),
             Ok((
                 "",
