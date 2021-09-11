@@ -5,7 +5,7 @@ use nom::{
     character::complete::{char, line_ending, multispace0, space0, space1},
     combinator::map,
     multi::{many1, separated_list1},
-    sequence::{delimited, preceded, terminated},
+    sequence::{delimited, pair, preceded, terminated},
     IResult,
 };
 
@@ -15,6 +15,7 @@ pub type Program<'a> = Vec<Instruction<'a>>;
 pub enum Instruction<'a> {
     Read(Vec<&'a str>),
     Write(Expression<'a>),
+    Assignment(&'a str, Expression<'a>),
 }
 
 fn read(i: &str) -> IResult<&str, Instruction> {
@@ -32,16 +33,26 @@ fn read(i: &str) -> IResult<&str, Instruction> {
 
 fn write(i: &str) -> IResult<&str, Instruction> {
     map(
-        preceded(
-            delimited(space0, tag("scrie"), space1),
-            expression::expr,
-        ),
+        preceded(delimited(space0, tag("scrie"), space1), expression::expr),
         Instruction::Write,
     )(i)
 }
 
+fn assignment(i: &str) -> IResult<&str, Instruction> {
+    map(
+        pair(
+            terminated(
+                preceded(space0, expression::id),
+                delimited(space0, tag("<-"), space0),
+            ),
+            expression::expr,
+        ),
+        |(id, expr)| Instruction::Assignment(id, expr),
+    )(i)
+}
+
 fn instruction(i: &str) -> IResult<&str, Instruction> {
-    alt((read, write))(i)
+    alt((read, write, assignment))(i)
 }
 
 pub fn program(i: &str) -> IResult<&str, Program> {
@@ -112,6 +123,43 @@ mod test {
                     )),
                     Box::new(Expression::Variable("var"))
                 ))
+            ))
+        );
+    }
+
+    #[test]
+    fn assignment_test() {
+        assert_eq!(
+            assignment("x <- 1"),
+            Ok(("", Instruction::Assignment("x", Expression::Constant(1))))
+        );
+        assert_eq!(
+            assignment(" var12<-6 + 5 "),
+            Ok((
+                "",
+                Instruction::Assignment(
+                    "var12",
+                    Expression::Addition(
+                        Box::new(Expression::Constant(6)),
+                        Box::new(Expression::Constant(5))
+                    )
+                )
+            ))
+        );
+        assert_eq!(
+            assignment(" v <- 5 + x * y "),
+            Ok((
+                "",
+                Instruction::Assignment(
+                    "v",
+                    Expression::Addition(
+                        Box::new(Expression::Constant(5)),
+                        Box::new(Expression::Multiplication(
+                            Box::new(Expression::Variable("x")),
+                            Box::new(Expression::Variable("y"))
+                        ))
+                    )
+                )
             ))
         );
     }
