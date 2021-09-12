@@ -2,9 +2,8 @@ use super::expression::{expr, id, Expression};
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::{char, line_ending, multispace0, space0, space1},
-    combinator::{cond, map},
-    error::ParseError,
+    character::complete::{char, line_ending, space0, space1},
+    combinator::map,
     multi::{count, many1, separated_list1},
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
