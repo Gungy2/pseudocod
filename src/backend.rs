@@ -46,6 +46,13 @@ impl<'a> Instruction<'a> {
                         .for_each(|instr| instr.execute(execution_context));
                 }
             }
+            Instruction::While(cond, block) => {
+                while cond.evaluate(execution_context) != 0 {
+                    block
+                        .iter()
+                        .for_each(|instr| instr.execute(execution_context));
+                }
+            }
         }
     }
 }

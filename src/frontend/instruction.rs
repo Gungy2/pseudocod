@@ -2,7 +2,7 @@ use super::expression::{expr, id, Expression};
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::{char, line_ending, multispace0, space0, space1},
+    character::complete::{char, line_ending, space0, space1},
     combinator::{map, opt},
     multi::{count, many1, separated_list1},
     sequence::{delimited, pair, preceded, terminated, tuple},
@@ -17,6 +17,7 @@ pub enum Instruction<'a> {
     Write(Expression<'a>),
     Assignment(&'a str, Expression<'a>),
     If(Expression<'a>, Block<'a>, Option<Block<'a>>),
+    While(Expression<'a>, Block<'a>),
 }
 
 fn read(i: &str) -> IResult<&str, Instruction> {
@@ -53,7 +54,15 @@ fn assignment(i: &str) -> IResult<&str, Instruction> {
 fn instruction<'a>(
     indent: usize,
 ) -> impl Fn(&'a str) -> IResult<&str, Instruction<'a>, nom::error::Error<&'a str>> {
-    move |i: &'a str| alt((read, write, assignment, if_instr(indent)))(i)
+    move |i: &'a str| {
+        alt((
+            read,
+            write,
+            assignment,
+            if_instr(indent),
+            while_instr(indent),
+        ))(i)
+    }
 }
 
 fn if_instr<'a>(
@@ -69,6 +78,18 @@ fn if_instr<'a>(
             )),
         )),
         |(expr, if_block, else_block)| Instruction::If(expr, if_block, else_block),
+    )
+}
+
+fn while_instr<'a>(
+    indent: usize,
+) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, nom::error::Error<&'a str>> {
+    map(
+        pair(
+            preceded(tuple((tag("cat"), space0, tag("timp"), space0)), expr),
+            preceded(terminated(tag("executa"), space0), block(indent + 1)),
+        ),
+        |(expr, block)| Instruction::While(expr, block),
     )
 }
 
@@ -252,6 +273,56 @@ mod test {
                         Instruction::Write(Expression::Constant(6)),
                     ],
                     None
+                )
+            ))
+        );
+        assert_eq!(
+            if_instr(0)(
+                "daca 1 atunci\n  daca 2 atunci\n    scrie 5\n  scrie 6\naltfel\n  scrie 1"
+            ),
+            Ok((
+                "",
+                Instruction::If(
+                    Expression::Constant(1),
+                    vec![
+                        Instruction::If(
+                            Expression::Constant(2),
+                            vec![Instruction::Write(Expression::Constant(5)),],
+                            None
+                        ),
+                        Instruction::Write(Expression::Constant(6)),
+                    ],
+                    Some(vec![Instruction::Write(Expression::Constant(1))])
+                )
+            ))
+        );
+    }
+
+    #[test]
+    fn while_test() {
+        assert_eq!(
+            while_instr(0)("cat timp 1 executa\n  scrie 2\n  scrie 4"),
+            Ok((
+                "",
+                Instruction::While(
+                    Expression::Constant(1),
+                    vec![
+                        Instruction::Write(Expression::Constant(2)),
+                        Instruction::Write(Expression::Constant(4))
+                    ]
+                )
+            ))
+        );
+        assert_eq!(
+            while_instr(0)("cat timp 1 executa\n  cat timp 2 executa\n    scrie 1"),
+            Ok((
+                "",
+                Instruction::While(
+                    Expression::Constant(1),
+                    vec![Instruction::While(
+                        Expression::Constant(2),
+                        vec![Instruction::Write(Expression::Constant(1)),]
+                    )]
                 )
             ))
         );
