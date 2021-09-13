@@ -32,13 +32,18 @@ impl<'a> Instruction<'a> {
                 execution_context.integers.insert(var, val);
             }
             Instruction::Write(expr) => {
-                println!("{}", expr.evaluate(execution_context))
+                println!("{}", expr.evaluate(execution_context));
             }
-            Instruction::If(cond, block) => {
-                if cond.evaluate(execution_context) != 0 {
+            Instruction::If(cond, if_block, else_block) => {
+                let block = if cond.evaluate(execution_context) != 0 {
+                    Some(if_block)
+                } else {
+                    else_block.as_ref()
+                };
+                if let Some(block) = block {
                     block
                         .iter()
-                        .for_each(|instr| instr.execute(execution_context))
+                        .for_each(|instr| instr.execute(execution_context));
                 }
             }
         }
@@ -82,6 +87,14 @@ impl<'a> Expression<'a> {
                     panic!("Cannot divide by 0");
                 }
                 val1 / val2
+            }
+            Expression::Reminder(expr1, expr2) => {
+                let val1 = expr1.evaluate(execution_context);
+                let val2 = expr2.evaluate(execution_context);
+                if val2 == 0 {
+                    panic!("Cannot divide by 0");
+                }
+                val1 % val2
             }
         }
     }

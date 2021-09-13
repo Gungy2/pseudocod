@@ -20,6 +20,7 @@ pub enum Expression<'a> {
     Division(Box<Expression<'a>>, Box<Expression<'a>>),
     Addition(Box<Expression<'a>>, Box<Expression<'a>>),
     Subtraction(Box<Expression<'a>>, Box<Expression<'a>>),
+    Reminder(Box<Expression<'a>>, Box<Expression<'a>>),
     Minus(Box<Expression<'a>>),
 }
 
@@ -55,14 +56,12 @@ fn term(i: &str) -> IResult<&str, Expression> {
     let (i, init) = factor(i)?;
 
     fold_many0(
-        pair(alt((char('*'), char('/'))), factor),
+        pair(alt((char('*'), char('/'), char('%'))), factor),
         move || init.clone(),
-        |acc, (op, expr)| {
-            if op == '*' {
-                Expression::Multiplication(Box::new(acc), Box::new(expr))
-            } else {
-                Expression::Division(Box::new(acc), Box::new(expr))
-            }
+        |acc, (op, expr)| match op {
+            '*' => Expression::Multiplication(Box::new(acc), Box::new(expr)),
+            '/' => Expression::Division(Box::new(acc), Box::new(expr)),
+            _ => Expression::Reminder(Box::new(acc), Box::new(expr)),
         },
     )(i)
 }
