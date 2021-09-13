@@ -53,6 +53,28 @@ impl<'a> Instruction<'a> {
                         .for_each(|instr| instr.execute(execution_context));
                 }
             }
+            Instruction::For {
+                variable,
+                start_expr,
+                end_expr,
+                step,
+                block,
+            } => {
+                let initial = start_expr.evaluate(execution_context);
+                execution_context.integers.insert(variable, initial);
+                while *execution_context.integers.get(variable).unwrap()
+                    != end_expr.evaluate(execution_context)
+                {
+                    block
+                        .iter()
+                        .for_each(|instr| instr.execute(execution_context));
+                    let step = step.evaluate(execution_context);
+                    execution_context
+                        .integers
+                        .entry(variable)
+                        .and_modify(|e| *e += step);
+                }
+            }
         }
     }
 }

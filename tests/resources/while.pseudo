@@ -1,0 +1,4 @@
+x <- 5
+cat timp x executa
+  scrie x
+  x <- x - 1

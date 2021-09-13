@@ -18,6 +18,13 @@ pub enum Instruction<'a> {
     Assignment(&'a str, Expression<'a>),
     If(Expression<'a>, Block<'a>, Option<Block<'a>>),
     While(Expression<'a>, Block<'a>),
+    For {
+        variable: &'a str,
+        start_expr: Expression<'a>,
+        end_expr: Expression<'a>,
+        step: Expression<'a>,
+        block: Block<'a>,
+    },
 }
 
 fn read(i: &str) -> IResult<&str, Instruction> {
@@ -61,6 +68,7 @@ fn instruction<'a>(
             assignment,
             if_instr(indent),
             while_instr(indent),
+            for_instr(indent),
         ))(i)
     }
 }
@@ -86,10 +94,37 @@ fn while_instr<'a>(
 ) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, nom::error::Error<&'a str>> {
     map(
         pair(
-            preceded(tuple((tag("cat"), space0, tag("timp"), space0)), expr),
+            preceded(tuple((tag("cat"), space1, tag("timp"), space1)), expr),
             preceded(terminated(tag("executa"), space0), block(indent + 1)),
         ),
         |(expr, block)| Instruction::While(expr, block),
+    )
+}
+
+fn for_instr<'a>(
+    indent: usize,
+) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, nom::error::Error<&'a str>> {
+    map(
+        tuple((
+            preceded(tuple((tag("pentru"), space1)), assignment),
+            preceded(delimited(space0, char(','), space0), expr),
+            opt(preceded(delimited(space0, char(','), space0), expr)),
+            preceded(terminated(tag("executa"), space0), block(indent + 1)),
+        )),
+        |(assignment, end_expr, step, block)| {
+            let step = step.unwrap_or(Expression::Constant(1));
+            if let Instruction::Assignment(variable, start_expr) = assignment {
+                Instruction::For {
+                    variable,
+                    start_expr,
+                    end_expr,
+                    step,
+                    block,
+                }
+            } else {
+                panic!("Invalid assignment in for loop!")
+            }
+        },
     )
 }
 
@@ -112,9 +147,6 @@ fn indentation<'a>(
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::fs;
-    use std::path::Path;
-    use test_case::test_case;
 
     #[test]
     fn read_test() {
@@ -328,18 +360,33 @@ mod test {
         );
     }
 
-    //     #[test_case("reads.pseudo",
-    //         vec![
-    //             Instruction::Read(vec!["a", "b"]),
-    //             Instruction::Read(vec!["a", "c", "d"])]
-    //     ; "simple read program")]
-    //     fn program_test(path: &str, result: Block) {
-    //         assert_eq!(
-    //             program(
-    //                 &fs::read_to_string(Path::new("tests/resources").join(path))
-    //                     .expect("Invalid path to test file")
-    //             ),
-    //             Ok(("", result))
-    //         );
-    //     }
+    #[test]
+    fn for_test() {
+        assert_eq!(
+            for_instr(0)("pentru x<-1, 2 executa\n  scrie x"),
+            Ok((
+                "",
+                Instruction::For {
+                    variable: "x",
+                    start_expr: Expression::Constant(1),
+                    end_expr: Expression::Constant(2),
+                    step: Expression::Constant(1),
+                    block: vec![Instruction::Write(Expression::Variable("x"))]
+                }
+            ))
+        );
+        assert_eq!(
+            for_instr(0)("pentru var<- 0, 5  , 2   executa\n  scrie var"),
+            Ok((
+                "",
+                Instruction::For {
+                    variable: "var",
+                    start_expr: Expression::Constant(0),
+                    end_expr: Expression::Constant(5),
+                    step: Expression::Constant(2),
+                    block: vec![Instruction::Write(Expression::Variable("var"))]
+                }
+            ))
+        );
+    }
 }
