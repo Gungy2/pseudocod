@@ -1,14 +1,17 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
 
-use crate::frontend::expression::Expression;
+use crate::frontend::expression::{Expression, OrderType};
 use crate::frontend::instruction::{Instruction, WhileType};
 
 pub struct ExecutionContext<'a> {
     pub integers: HashMap<&'a str, i32>,
 }
 
-pub fn execute_program<'a>(program: &[Instruction<'a>], execution_context: &mut ExecutionContext<'a>) {
+pub fn execute_program<'a>(
+    program: &[Instruction<'a>],
+    execution_context: &mut ExecutionContext<'a>,
+) {
     program
         .iter()
         .for_each(|instr| instr.execute(execution_context))
@@ -144,6 +147,22 @@ impl<'a> Expression<'a> {
                     panic!("Cannot divide by 0");
                 }
                 val1 % val2
+            }
+            Expression::Order(order_type, expr1, expr2) => {
+                let val1 = expr1.evaluate(execution_context);
+                let val2 = expr2.evaluate(execution_context);
+                let cond = match order_type {
+                    OrderType::Less => val1 < val2,
+                    OrderType::LessOrEqual => val1 <= val2,
+                    OrderType::Equal => val1 == val2,
+                    OrderType::GreaterOrEqual => val1 >= val2,
+                    OrderType::Greater => val1 > val2,
+                };
+                if cond {
+                    1
+                } else {
+                    0
+                }
             }
         }
     }

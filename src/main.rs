@@ -7,8 +7,8 @@ use std::{collections::HashMap, env, fs, path::Path};
 
 use crate::backend::ExecutionContext;
 use nom::{
+    error::{convert_error, VerboseError},
     Err,
-    error::{VerboseError, convert_error},
 };
 
 fn main() {
@@ -28,9 +28,8 @@ fn main() {
             let error_message = convert_error(i, e);
             panic!("{}", error_message);
         };
-        panic!("asd");
-    }
-    );
+        panic!("Program could not compile!");
+    });
     dbg!(&program);
 
     // Execute the program

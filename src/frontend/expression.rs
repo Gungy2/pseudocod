@@ -1,3 +1,4 @@
+use nom::error::ParseError;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while},
@@ -10,7 +11,6 @@ use nom::{
     sequence::{delimited, pair},
     IResult,
 };
-use nom::error::ParseError;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Expression<'a> {
@@ -22,6 +22,29 @@ pub enum Expression<'a> {
     Subtraction(Box<Expression<'a>>, Box<Expression<'a>>),
     Reminder(Box<Expression<'a>>, Box<Expression<'a>>),
     Minus(Box<Expression<'a>>),
+    Order(OrderType, Box<Expression<'a>>, Box<Expression<'a>>),
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub enum OrderType {
+    Less,
+    LessOrEqual,
+    Equal,
+    Greater,
+    GreaterOrEqual,
+}
+
+impl From<&str> for OrderType {
+    fn from(symbol: &str) -> Self {
+        match symbol {
+            "<" => OrderType::Less,
+            "<=" => OrderType::LessOrEqual,
+            "=" => OrderType::Equal,
+            ">=" => OrderType::GreaterOrEqual,
+            ">" => OrderType::Greater,
+            _ => panic!("Invalid Operator"),
+        }
+    }
 }
 
 fn parens<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Expression, E> {
@@ -30,10 +53,9 @@ fn parens<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Expression, E
 
 fn factor<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, Expression, E> {
     alt((
-        map(
-            delimited(space0, digit1, space0),
-            |num_str: &str| Expression::Constant(num_str.parse().unwrap()),
-        ),
+        map(delimited(space0, digit1, space0), |num_str: &str| {
+            Expression::Constant(num_str.parse().unwrap())
+        }),
         map(delimited(space0, id, space0), |id: &str| {
             Expression::Variable(id)
         }),
@@ -66,7 +88,7 @@ fn term<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Expression, E> 
     )(i)
 }
 
-pub fn expr<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Expression, E> {
+fn member<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Expression, E> {
     if let Ok((i, init)) = term::<'a, E>(i) {
         fold_many0(
             pair(alt((char('+'), char('-'))), term),
@@ -85,20 +107,50 @@ pub fn expr<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Expression,
     }
 }
 
+pub fn expr<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Expression, E> {
+    let (i, init) = member(i)?;
+
+    fold_many0(
+        pair(
+            alt((tag("<="), tag(">="), tag("<"), tag(">"), tag("="))),
+            member,
+        ),
+        move || init.clone(),
+        |acc, (op, expr)| Expression::Order(OrderType::from(op), Box::new(acc), Box::new(expr)),
+    )(i)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use pretty_assertions::assert_eq;
     use nom::error::Error;
 
     #[test]
     fn factor_test() {
-        assert_eq!(factor::<Error<&str>>("3"), Ok(("", Expression::Constant(3))));
-        assert_eq!(factor::<Error<&str>>(" 12"), Ok(("", Expression::Constant(12))));
-        assert_eq!(factor::<Error<&str>>("537  "), Ok(("", Expression::Constant(537))));
-        assert_eq!(factor::<Error<&str>>("  24   "), Ok(("", Expression::Constant(24))));
-        assert_eq!(factor::<Error<&str>>("a"), Ok(("", Expression::Variable("a"))));
-        assert_eq!(factor::<Error<&str>>(" as3234"), Ok(("", Expression::Variable("as3234"))));
+        assert_eq!(
+            factor::<Error<&str>>("3"),
+            Ok(("", Expression::Constant(3)))
+        );
+        assert_eq!(
+            factor::<Error<&str>>(" 12"),
+            Ok(("", Expression::Constant(12)))
+        );
+        assert_eq!(
+            factor::<Error<&str>>("537  "),
+            Ok(("", Expression::Constant(537)))
+        );
+        assert_eq!(
+            factor::<Error<&str>>("  24   "),
+            Ok(("", Expression::Constant(24)))
+        );
+        assert_eq!(
+            factor::<Error<&str>>("a"),
+            Ok(("", Expression::Variable("a")))
+        );
+        assert_eq!(
+            factor::<Error<&str>>(" as3234"),
+            Ok(("", Expression::Variable("as3234")))
+        );
         assert_eq!(
             factor::<Error<&str>>("variable_name  "),
             Ok(("", Expression::Variable("variable_name")))
@@ -156,9 +208,9 @@ mod test {
     }
 
     #[test]
-    fn expr_test() {
+    fn member_test() {
         assert_eq!(
-            expr::<Error<&str>>(" 1 +  2 "),
+            member::<Error<&str>>(" 1 +  2 "),
             Ok((
                 "",
                 Expression::Addition(
@@ -168,7 +220,7 @@ mod test {
             ))
         );
         assert_eq!(
-            expr::<Error<&str>>(" 12 + 6 - 4+  3"),
+            member::<Error<&str>>(" 12 + 6 - 4+  3"),
             Ok((
                 "",
                 Expression::Addition(
@@ -184,7 +236,7 @@ mod test {
             ))
         );
         assert_eq!(
-            expr::<Error<&str>>(" 1 + 2*3 + 4"),
+            member::<Error<&str>>(" 1 + 2*3 + 4"),
             Ok((
                 "",
                 Expression::Addition(
@@ -194,7 +246,7 @@ mod test {
                             Box::new(Expression::Constant(2)),
                             Box::new(Expression::Constant(3)),
                         )),
-                    ), ),
+                    ),),
                     Box::new(Expression::Constant(4)),
                 )
             ))
@@ -203,7 +255,10 @@ mod test {
 
     #[test]
     fn parens_test() {
-        assert_eq!(expr::<Error<&str>>(" (  2 )"), Ok(("", Expression::Constant(2))));
+        assert_eq!(
+            expr::<Error<&str>>(" (  2 )"),
+            Ok(("", Expression::Constant(2)))
+        );
         assert_eq!(
             expr::<Error<&str>>(" ( -52 )"),
             Ok(("", Expression::Minus(Box::new(Expression::Constant(52)))))
@@ -286,6 +341,50 @@ mod test {
                                 Box::new(Expression::Variable("c")),
                             )),
                         )),
+                    )),
+                    Box::new(Expression::Constant(3)),
+                )
+            ))
+        );
+    }
+
+    #[test]
+    fn expr_test() {
+        assert_eq!(
+            expr::<Error<&str>>("5 < 3"),
+            Ok((
+                "",
+                Expression::Order(
+                    OrderType::Less,
+                    Box::new(Expression::Constant(5)),
+                    Box::new(Expression::Constant(3))
+                )
+            ))
+        );
+        assert_eq!(
+            expr::<Error<&str>>("x <= 6 + 3"),
+            Ok((
+                "",
+                Expression::Order(
+                    OrderType::LessOrEqual,
+                    Box::new(Expression::Variable("x")),
+                    Box::new(Expression::Addition(
+                        Box::new(Expression::Constant(6)),
+                        Box::new(Expression::Constant(3))
+                    ))
+                )
+            ))
+        );
+        assert_eq!(
+            expr::<Error<&str>>("(x = 6) > 3"),
+            Ok((
+                "",
+                Expression::Order(
+                    OrderType::Greater,
+                    Box::new(Expression::Order(
+                        OrderType::Equal,
+                        Box::new(Expression::Variable("x")),
+                        Box::new(Expression::Constant(6))
                     )),
                     Box::new(Expression::Constant(3)),
                 )

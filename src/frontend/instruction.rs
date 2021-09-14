@@ -1,4 +1,7 @@
 use super::expression::{expr, id, Expression};
+use nom::character::complete::multispace0;
+use nom::combinator::eof;
+use nom::error::ParseError;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -8,9 +11,6 @@ use nom::{
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
 };
-use nom::error::ParseError;
-use nom::combinator::eof;
-use nom::character::complete::multispace0;
 
 pub type Block<'a> = Vec<Instruction<'a>>;
 
@@ -71,6 +71,7 @@ fn instruction<'a, E: ParseError<&'a str>>(
     indent: usize,
 ) -> impl Fn(&'a str) -> IResult<&str, Instruction<'a>, E> {
     move |i: &'a str| {
+        dbg!(&i);
         alt((
             read,
             write,
@@ -118,7 +119,10 @@ fn do_while_instr<'a, E: ParseError<&'a str>>(
     map(
         pair(
             preceded(terminated(tag("executa"), space0), block(indent + 1)),
-            preceded(tuple((indentation(indent), tag("cat"), space1, tag("timp"), space1)), expr),
+            preceded(
+                tuple((indentation(indent), tag("cat"), space1, tag("timp"), space1)),
+                expr,
+            ),
         ),
         |(block, expr)| Instruction::While(WhileType::DoWhile, expr, block),
     )
@@ -130,7 +134,16 @@ fn repeat_instr<'a, E: ParseError<&'a str>>(
     map(
         pair(
             preceded(terminated(tag("repeta"), space0), block(indent + 1)),
-            preceded(tuple((indentation(indent), tag("pana"), space1, tag("cand"), space1)), expr),
+            preceded(
+                tuple((
+                    indentation(indent),
+                    tag("pana"),
+                    space1,
+                    tag("cand"),
+                    space1,
+                )),
+                expr,
+            ),
         ),
         |(block, expr)| Instruction::While(WhileType::Repeat, expr, block),
     )
@@ -170,7 +183,7 @@ fn block<'a, E: ParseError<&'a str>>(
 }
 
 pub fn program<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Block, E> {
-    terminated(block(0), pair(multispace0, eof))(i)
+    terminated(block(0), multispace0)(i)
 }
 
 fn indentation<'a, E: ParseError<&'a str>>(
@@ -186,7 +199,10 @@ mod test {
 
     #[test]
     fn read_test() {
-        assert_eq!(read::<Error<&str>>("citeste a  "), Ok(("", Instruction::Read(vec!["a"]))));
+        assert_eq!(
+            read::<Error<&str>>("citeste a  "),
+            Ok(("", Instruction::Read(vec!["a"])))
+        );
         assert_eq!(
             read::<Error<&str>>("  citeste   a  , b   "),
             Ok(("", Instruction::Read(vec!["a", "b"])))
@@ -416,7 +432,9 @@ mod test {
             ))
         );
         assert_eq!(
-            do_while_instr::<Error<&str>>(0)("executa\n  executa\n    scrie x\n  cat timp m\ncat timp 1"),
+            do_while_instr::<Error<&str>>(0)(
+                "executa\n  executa\n    scrie x\n  cat timp m\ncat timp 1"
+            ),
             Ok((
                 "",
                 Instruction::While(
@@ -449,7 +467,9 @@ mod test {
             ))
         );
         assert_eq!(
-            repeat_instr::<Error<&str>>(0)("repeta\n  repeta\n    scrie 13\n  pana cand m\npana cand 1"),
+            repeat_instr::<Error<&str>>(0)(
+                "repeta\n  repeta\n    scrie 13\n  pana cand m\npana cand 1"
+            ),
             Ok((
                 "",
                 Instruction::While(
