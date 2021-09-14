@@ -5,12 +5,12 @@ use nom::{
         complete::{char, digit1, space0},
         is_alphabetic, is_alphanumeric,
     },
-    combinator::{fail, map, map_res},
+    combinator::{fail, map},
     multi::fold_many0,
     sequence::{delimited, pair},
     IResult,
 };
-use std::num::ParseIntError;
+use nom::error::ParseError;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Expression<'a> {
@@ -24,15 +24,15 @@ pub enum Expression<'a> {
     Minus(Box<Expression<'a>>),
 }
 
-fn parens(i: &str) -> IResult<&str, Expression> {
+fn parens<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Expression, E> {
     delimited(space0, delimited(tag("("), expr, tag(")")), space0)(i)
 }
 
-fn factor(i: &str) -> IResult<&str, Expression> {
+fn factor<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, Expression, E> {
     alt((
-        map_res::<_, _, _, _, ParseIntError, _, _>(
+        map(
             delimited(space0, digit1, space0),
-            |num_str: &str| Ok(Expression::Constant(num_str.parse()?)),
+            |num_str: &str| Expression::Constant(num_str.parse().unwrap()),
         ),
         map(delimited(space0, id, space0), |id: &str| {
             Expression::Variable(id)
@@ -41,7 +41,7 @@ fn factor(i: &str) -> IResult<&str, Expression> {
     ))(i)
 }
 
-pub fn id(i: &str) -> IResult<&str, &str> {
+pub fn id<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, &'a str, E> {
     if let Some(chr) = i.chars().next() {
         if !is_alphabetic(chr as u8) {
             return fail(i);
@@ -52,7 +52,7 @@ pub fn id(i: &str) -> IResult<&str, &str> {
     take_while(|c| is_alphanumeric(c as u8) || (c as char == '_'))(i)
 }
 
-fn term(i: &str) -> IResult<&str, Expression> {
+fn term<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Expression, E> {
     let (i, init) = factor(i)?;
 
     fold_many0(
@@ -66,8 +66,8 @@ fn term(i: &str) -> IResult<&str, Expression> {
     )(i)
 }
 
-pub fn expr(i: &str) -> IResult<&str, Expression> {
-    if let Ok((i, init)) = term(i) {
+pub fn expr<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Expression, E> {
+    if let Ok((i, init)) = term::<'a, E>(i) {
         fold_many0(
             pair(alt((char('+'), char('-'))), term),
             move || init.clone(),
@@ -89,17 +89,18 @@ pub fn expr(i: &str) -> IResult<&str, Expression> {
 mod test {
     use super::*;
     use pretty_assertions::assert_eq;
+    use nom::error::Error;
 
     #[test]
     fn factor_test() {
-        assert_eq!(factor("3"), Ok(("", Expression::Constant(3))));
-        assert_eq!(factor(" 12"), Ok(("", Expression::Constant(12))));
-        assert_eq!(factor("537  "), Ok(("", Expression::Constant(537))));
-        assert_eq!(factor("  24   "), Ok(("", Expression::Constant(24))));
-        assert_eq!(factor("a"), Ok(("", Expression::Variable("a"))));
-        assert_eq!(factor(" as3234"), Ok(("", Expression::Variable("as3234"))));
+        assert_eq!(factor::<Error<&str>>("3"), Ok(("", Expression::Constant(3))));
+        assert_eq!(factor::<Error<&str>>(" 12"), Ok(("", Expression::Constant(12))));
+        assert_eq!(factor::<Error<&str>>("537  "), Ok(("", Expression::Constant(537))));
+        assert_eq!(factor::<Error<&str>>("  24   "), Ok(("", Expression::Constant(24))));
+        assert_eq!(factor::<Error<&str>>("a"), Ok(("", Expression::Variable("a"))));
+        assert_eq!(factor::<Error<&str>>(" as3234"), Ok(("", Expression::Variable("as3234"))));
         assert_eq!(
-            factor("variable_name  "),
+            factor::<Error<&str>>("variable_name  "),
             Ok(("", Expression::Variable("variable_name")))
         );
     }
@@ -107,7 +108,7 @@ mod test {
     #[test]
     fn term_test() {
         assert_eq!(
-            term(" 12 *2 /  3"),
+            term::<Error<&str>>(" 12 *2 /  3"),
             Ok((
                 "",
                 Expression::Division(
@@ -121,7 +122,7 @@ mod test {
         );
 
         assert_eq!(
-            term(" 2* 3  *2 *2 /  3"),
+            term::<Error<&str>>(" 2* 3  *2 *2 /  3"),
             Ok((
                 "",
                 Expression::Division(
@@ -140,7 +141,7 @@ mod test {
             ))
         );
         assert_eq!(
-            term(" 48 /  3/2"),
+            term::<Error<&str>>(" 48 /  3/2"),
             Ok((
                 "",
                 Expression::Division(
@@ -157,7 +158,7 @@ mod test {
     #[test]
     fn expr_test() {
         assert_eq!(
-            expr(" 1 +  2 "),
+            expr::<Error<&str>>(" 1 +  2 "),
             Ok((
                 "",
                 Expression::Addition(
@@ -167,7 +168,7 @@ mod test {
             ))
         );
         assert_eq!(
-            expr(" 12 + 6 - 4+  3"),
+            expr::<Error<&str>>(" 12 + 6 - 4+  3"),
             Ok((
                 "",
                 Expression::Addition(
@@ -183,7 +184,7 @@ mod test {
             ))
         );
         assert_eq!(
-            expr(" 1 + 2*3 + 4"),
+            expr::<Error<&str>>(" 1 + 2*3 + 4"),
             Ok((
                 "",
                 Expression::Addition(
@@ -202,17 +203,17 @@ mod test {
 
     #[test]
     fn parens_test() {
-        assert_eq!(expr(" (  2 )"), Ok(("", Expression::Constant(2))));
+        assert_eq!(expr::<Error<&str>>(" (  2 )"), Ok(("", Expression::Constant(2))));
         assert_eq!(
-            expr(" ( -52 )"),
+            expr::<Error<&str>>(" ( -52 )"),
             Ok(("", Expression::Minus(Box::new(Expression::Constant(52)))))
         );
         assert_eq!(
-            expr(" ( -var )"),
+            expr::<Error<&str>>(" ( -var )"),
             Ok(("", Expression::Minus(Box::new(Expression::Variable("var")))))
         );
         assert_eq!(
-            expr(" (a +  b ) - 5"),
+            expr::<Error<&str>>(" (a +  b ) - 5"),
             Ok((
                 "",
                 Expression::Subtraction(
@@ -225,7 +226,7 @@ mod test {
             ))
         );
         assert_eq!(
-            expr(" 4 * ( - var_name )  + 6"),
+            expr::<Error<&str>>(" 4 * ( - var_name )  + 6"),
             Ok((
                 "",
                 Expression::Addition(
@@ -240,7 +241,7 @@ mod test {
             ))
         );
         assert_eq!(
-            expr(" 2* (  3 + 4 ) "),
+            expr::<Error<&str>>(" 2* (  3 + 4 ) "),
             Ok((
                 "",
                 Expression::Multiplication(
@@ -253,7 +254,7 @@ mod test {
             ))
         );
         assert_eq!(
-            expr("  2*2 / ( 5 - 1) + 3"),
+            expr::<Error<&str>>("  2*2 / ( 5 - 1) + 3"),
             Ok((
                 "",
                 Expression::Addition(
@@ -272,7 +273,7 @@ mod test {
             ))
         );
         assert_eq!(
-            expr("  var - 2 / ( 5 - c) + 3"),
+            expr::<Error<&str>>("  var - 2 / ( 5 - c) + 3"),
             Ok((
                 "",
                 Expression::Addition(

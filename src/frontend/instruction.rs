@@ -8,6 +8,9 @@ use nom::{
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
 };
+use nom::error::ParseError;
+use nom::combinator::eof;
+use nom::character::complete::multispace0;
 
 pub type Block<'a> = Vec<Instruction<'a>>;
 
@@ -34,7 +37,7 @@ pub enum Instruction<'a> {
     },
 }
 
-fn read(i: &str) -> IResult<&str, Instruction> {
+fn read<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Instruction, E> {
     map(
         preceded(
             delimited(space0, tag("citeste"), space1),
@@ -47,14 +50,14 @@ fn read(i: &str) -> IResult<&str, Instruction> {
     )(i)
 }
 
-fn write(i: &str) -> IResult<&str, Instruction> {
+fn write<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Instruction, E> {
     map(
         preceded(delimited(space0, tag("scrie"), space1), expr),
         Instruction::Write,
     )(i)
 }
 
-fn assignment(i: &str) -> IResult<&str, Instruction> {
+fn assignment<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Instruction, E> {
     map(
         pair(
             terminated(preceded(space0, id), delimited(space0, tag("<-"), space0)),
@@ -64,9 +67,9 @@ fn assignment(i: &str) -> IResult<&str, Instruction> {
     )(i)
 }
 
-fn instruction<'a>(
+fn instruction<'a, E: ParseError<&'a str>>(
     indent: usize,
-) -> impl Fn(&'a str) -> IResult<&str, Instruction<'a>, nom::error::Error<&'a str>> {
+) -> impl Fn(&'a str) -> IResult<&str, Instruction<'a>, E> {
     move |i: &'a str| {
         alt((
             read,
@@ -81,9 +84,9 @@ fn instruction<'a>(
     }
 }
 
-fn if_instr<'a>(
+fn if_instr<'a, E: ParseError<&'a str>>(
     indent: usize,
-) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, nom::error::Error<&'a str>> {
+) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, E> {
     map(
         tuple((
             preceded(terminated(tag("daca"), space0), expr),
@@ -97,9 +100,9 @@ fn if_instr<'a>(
     )
 }
 
-fn while_instr<'a>(
+fn while_instr<'a, E: ParseError<&'a str>>(
     indent: usize,
-) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, nom::error::Error<&'a str>> {
+) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, E> {
     map(
         pair(
             preceded(tuple((tag("cat"), space1, tag("timp"), space1)), expr),
@@ -109,9 +112,9 @@ fn while_instr<'a>(
     )
 }
 
-fn do_while_instr<'a>(
+fn do_while_instr<'a, E: ParseError<&'a str>>(
     indent: usize,
-) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, nom::error::Error<&'a str>> {
+) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, E> {
     map(
         pair(
             preceded(terminated(tag("executa"), space0), block(indent + 1)),
@@ -121,9 +124,9 @@ fn do_while_instr<'a>(
     )
 }
 
-fn repeat_instr<'a>(
+fn repeat_instr<'a, E: ParseError<&'a str>>(
     indent: usize,
-) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, nom::error::Error<&'a str>> {
+) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, E> {
     map(
         pair(
             preceded(terminated(tag("repeta"), space0), block(indent + 1)),
@@ -133,9 +136,9 @@ fn repeat_instr<'a>(
     )
 }
 
-fn for_instr<'a>(
+fn for_instr<'a, E: ParseError<&'a str>>(
     indent: usize,
-) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, nom::error::Error<&'a str>> {
+) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, E> {
     map(
         tuple((
             preceded(tuple((tag("pentru"), space1)), assignment),
@@ -160,35 +163,36 @@ fn for_instr<'a>(
     )
 }
 
-fn block<'a>(
+fn block<'a, E: ParseError<&'a str>>(
     indent: usize,
-) -> impl FnMut(&'a str) -> IResult<&str, Block<'a>, nom::error::Error<&'a str>> {
+) -> impl FnMut(&'a str) -> IResult<&'a str, Block<'a>, E> {
     many1(preceded(indentation(indent), instruction(indent)))
 }
 
-pub fn program(i: &str) -> IResult<&str, Block> {
-    block(0)(i)
+pub fn program<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Block, E> {
+    terminated(block(0), pair(multispace0, eof))(i)
 }
 
-fn indentation<'a>(
+fn indentation<'a, E: ParseError<&'a str>>(
     indent: usize,
-) -> impl FnMut(&'a str) -> IResult<&str, (), nom::error::Error<&'a str>> {
+) -> impl FnMut(&'a str) -> IResult<&str, (), E> {
     map(pair(line_ending, count(char(' '), 2 * indent)), |_| ())
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use nom::error::Error;
 
     #[test]
     fn read_test() {
-        assert_eq!(read("citeste a  "), Ok(("", Instruction::Read(vec!["a"]))));
+        assert_eq!(read::<Error<&str>>("citeste a  "), Ok(("", Instruction::Read(vec!["a"]))));
         assert_eq!(
-            read("  citeste   a  , b   "),
+            read::<Error<&str>>("  citeste   a  , b   "),
             Ok(("", Instruction::Read(vec!["a", "b"])))
         );
         assert_eq!(
-            read(" citeste   a34  , b123,a_34   "),
+            read::<Error<&str>>(" citeste   a34  , b123,a_34   "),
             Ok(("", Instruction::Read(vec!["a34", "b123", "a_34"])))
         );
     }
@@ -196,11 +200,11 @@ mod test {
     #[test]
     fn write_test() {
         assert_eq!(
-            write("scrie 1"),
+            write::<Error<&str>>("scrie 1"),
             Ok(("", Instruction::Write(Expression::Constant(1))))
         );
         assert_eq!(
-            write("  scrie  6 + 5  "),
+            write::<Error<&str>>("  scrie  6 + 5  "),
             Ok((
                 "",
                 Instruction::Write(Expression::Addition(
@@ -210,7 +214,7 @@ mod test {
             ))
         );
         assert_eq!(
-            write(" scrie (a + b) - 3"),
+            write::<Error<&str>>(" scrie (a + b) - 3"),
             Ok((
                 "",
                 Instruction::Write(Expression::Subtraction(
@@ -223,7 +227,7 @@ mod test {
             ))
         );
         assert_eq!(
-            write("scrie 3 * 4 + var"),
+            write::<Error<&str>>("scrie 3 * 4 + var"),
             Ok((
                 "",
                 Instruction::Write(Expression::Addition(
@@ -240,11 +244,11 @@ mod test {
     #[test]
     fn assignment_test() {
         assert_eq!(
-            assignment("x <- 1"),
+            assignment::<Error<&str>>("x <- 1"),
             Ok(("", Instruction::Assignment("x", Expression::Constant(1))))
         );
         assert_eq!(
-            assignment(" var12<-6 + 5 "),
+            assignment::<Error<&str>>(" var12<-6 + 5 "),
             Ok((
                 "",
                 Instruction::Assignment(
@@ -257,7 +261,7 @@ mod test {
             ))
         );
         assert_eq!(
-            assignment(" v <- 5 + x * y "),
+            assignment::<Error<&str>>(" v <- 5 + x * y "),
             Ok((
                 "",
                 Instruction::Assignment(
@@ -277,7 +281,7 @@ mod test {
     #[test]
     fn if_test() {
         assert_eq!(
-            if_instr(0)("daca 1 atunci \n  scrie 15"),
+            if_instr::<Error<&str>>(0)("daca 1 atunci \n  scrie 15"),
             Ok((
                 "",
                 Instruction::If(
@@ -288,7 +292,7 @@ mod test {
             ))
         );
         assert_eq!(
-            if_instr(0)("daca 5 + 5 atunci \n  scrie 10\n  scrie 16"),
+            if_instr::<Error<&str>>(0)("daca 5 + 5 atunci \n  scrie 10\n  scrie 16"),
             Ok((
                 "",
                 Instruction::If(
@@ -305,7 +309,7 @@ mod test {
             ))
         );
         assert_eq!(
-            if_instr(0)("daca 1 atunci\n  daca 2 atunci\n    scrie 5\n    scrie 6"),
+            if_instr::<Error<&str>>(0)("daca 1 atunci\n  daca 2 atunci\n    scrie 5\n    scrie 6"),
             Ok((
                 "",
                 Instruction::If(
@@ -323,7 +327,7 @@ mod test {
             ))
         );
         assert_eq!(
-            if_instr(0)("daca 1 atunci\n  daca 2 atunci\n    scrie 5\n  scrie 6"),
+            if_instr::<Error<&str>>(0)("daca 1 atunci\n  daca 2 atunci\n    scrie 5\n  scrie 6"),
             Ok((
                 "",
                 Instruction::If(
@@ -341,7 +345,7 @@ mod test {
             ))
         );
         assert_eq!(
-            if_instr(0)(
+            if_instr::<Error<&str>>(0)(
                 "daca 1 atunci\n  daca 2 atunci\n    scrie 5\n  scrie 6\naltfel\n  scrie 1"
             ),
             Ok((
@@ -365,7 +369,7 @@ mod test {
     #[test]
     fn while_test() {
         assert_eq!(
-            while_instr(0)("cat timp 1 executa\n  scrie 2\n  scrie 4"),
+            while_instr::<Error<&str>>(0)("cat timp 1 executa\n  scrie 2\n  scrie 4"),
             Ok((
                 "",
                 Instruction::While(
@@ -379,7 +383,7 @@ mod test {
             ))
         );
         assert_eq!(
-            while_instr(0)("cat timp 1 executa\n  cat timp 2 executa\n    scrie 1"),
+            while_instr::<Error<&str>>(0)("cat timp 1 executa\n  cat timp 2 executa\n    scrie 1"),
             Ok((
                 "",
                 Instruction::While(
@@ -398,7 +402,7 @@ mod test {
     #[test]
     fn do_while_test() {
         assert_eq!(
-            do_while_instr(0)("executa\n  scrie x\n  scrie 2\ncat timp 1"),
+            do_while_instr::<Error<&str>>(0)("executa\n  scrie x\n  scrie 2\ncat timp 1"),
             Ok((
                 "",
                 Instruction::While(
@@ -412,7 +416,7 @@ mod test {
             ))
         );
         assert_eq!(
-            do_while_instr(0)("executa\n  executa\n    scrie x\n  cat timp m\ncat timp 1"),
+            do_while_instr::<Error<&str>>(0)("executa\n  executa\n    scrie x\n  cat timp m\ncat timp 1"),
             Ok((
                 "",
                 Instruction::While(
@@ -431,7 +435,7 @@ mod test {
     #[test]
     fn repeat_test() {
         assert_eq!(
-            repeat_instr(0)("repeta\n  scrie x\n  scrie 5\npana cand 1"),
+            repeat_instr::<Error<&str>>(0)("repeta\n  scrie x\n  scrie 5\npana cand 1"),
             Ok((
                 "",
                 Instruction::While(
@@ -445,7 +449,7 @@ mod test {
             ))
         );
         assert_eq!(
-            repeat_instr(0)("repeta\n  repeta\n    scrie 13\n  pana cand m\npana cand 1"),
+            repeat_instr::<Error<&str>>(0)("repeta\n  repeta\n    scrie 13\n  pana cand m\npana cand 1"),
             Ok((
                 "",
                 Instruction::While(
@@ -464,7 +468,7 @@ mod test {
     #[test]
     fn for_test() {
         assert_eq!(
-            for_instr(0)("pentru x<-1, 2 executa\n  scrie x"),
+            for_instr::<Error<&str>>(0)("pentru x<-1, 2 executa\n  scrie x"),
             Ok((
                 "",
                 Instruction::For {
@@ -477,7 +481,7 @@ mod test {
             ))
         );
         assert_eq!(
-            for_instr(0)("pentru var<- 0, 5  , 2   executa\n  scrie var"),
+            for_instr::<Error<&str>>(0)("pentru var<- 0, 5  , 2   executa\n  scrie var"),
             Ok((
                 "",
                 Instruction::For {
