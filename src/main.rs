@@ -25,6 +25,6 @@ fn main() {
         integers: HashMap::new(),
     };
     println!("Executing...");
-    execute_program(program, &mut execution_context);
+    execute_program(&program, &mut execution_context);
     println!("\nDone!");
 }

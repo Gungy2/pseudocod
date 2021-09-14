@@ -2,16 +2,22 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 
 use crate::frontend::expression::Expression;
-use crate::frontend::instruction::{Block, Instruction};
+use crate::frontend::instruction::{Instruction, WhileType};
 
 pub struct ExecutionContext<'a> {
     pub integers: HashMap<&'a str, i32>,
 }
 
-pub fn execute_program<'a>(program: Block<'a>, execution_context: &mut ExecutionContext<'a>) {
+pub fn execute_program<'a>(program: &[Instruction<'a>], execution_context: &mut ExecutionContext<'a>) {
     program
         .iter()
         .for_each(|instr| instr.execute(execution_context))
+}
+
+fn execute_block<'a>(block: &[Instruction<'a>], execution_context: &mut ExecutionContext<'a>) {
+    block
+        .iter()
+        .for_each(|instr| instr.execute(execution_context));
 }
 
 impl<'a> Instruction<'a> {
@@ -46,12 +52,26 @@ impl<'a> Instruction<'a> {
                         .for_each(|instr| instr.execute(execution_context));
                 }
             }
-            Instruction::While(cond, block) => {
-                while cond.evaluate(execution_context) != 0 {
-                    block
-                        .iter()
-                        .for_each(|instr| instr.execute(execution_context));
-                }
+            Instruction::While(while_type, cond, block) => {
+                match while_type {
+                    WhileType::While => {
+                        while cond.evaluate(execution_context) != 0 {
+                            execute_block(block, execution_context);
+                        }
+                    }
+                    WhileType::DoWhile => {
+                        execute_block(block, execution_context);
+                        while cond.evaluate(execution_context) != 0 {
+                            execute_block(block, execution_context);
+                        }
+                    }
+                    WhileType::Repeat => {
+                        execute_block(block, execution_context);
+                        while cond.evaluate(execution_context) == 0 {
+                            execute_block(block, execution_context);
+                        }
+                    }
+                };
             }
             Instruction::For {
                 variable,

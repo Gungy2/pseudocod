@@ -113,7 +113,7 @@ mod test {
                 Expression::Division(
                     Box::new(Expression::Multiplication(
                         Box::new(Expression::Constant(12)),
-                        Box::new(Expression::Constant(2))
+                        Box::new(Expression::Constant(2)),
                     )),
                     Box::new(Expression::Constant(3)),
                 )
@@ -129,11 +129,11 @@ mod test {
                         Box::new(Expression::Multiplication(
                             Box::new(Expression::Multiplication(
                                 Box::new(Expression::Constant(2)),
-                                Box::new(Expression::Constant(3))
+                                Box::new(Expression::Constant(3)),
                             )),
-                            Box::new(Expression::Constant(2))
+                            Box::new(Expression::Constant(2)),
                         )),
-                        Box::new(Expression::Constant(2))
+                        Box::new(Expression::Constant(2)),
                     )),
                     Box::new(Expression::Constant(3)),
                 )
@@ -146,7 +146,7 @@ mod test {
                 Expression::Division(
                     Box::new(Expression::Division(
                         Box::new(Expression::Constant(48)),
-                        Box::new(Expression::Constant(3))
+                        Box::new(Expression::Constant(3)),
                     )),
                     Box::new(Expression::Constant(2)),
                 )
@@ -174,9 +174,9 @@ mod test {
                     Box::new(Expression::Subtraction(
                         Box::new(Expression::Addition(
                             Box::new(Expression::Constant(12)),
-                            Box::new(Expression::Constant(6))
+                            Box::new(Expression::Constant(6)),
                         )),
-                        Box::new(Expression::Constant(4))
+                        Box::new(Expression::Constant(4)),
                     )),
                     Box::new(Expression::Constant(3)),
                 )
@@ -191,9 +191,9 @@ mod test {
                         Box::new(Expression::Constant(1)),
                         Box::new(Expression::Multiplication(
                             Box::new(Expression::Constant(2)),
-                            Box::new(Expression::Constant(3))
+                            Box::new(Expression::Constant(3)),
                         )),
-                    ),),
+                    ), ),
                     Box::new(Expression::Constant(4)),
                 )
             ))
@@ -212,15 +212,15 @@ mod test {
             Ok(("", Expression::Minus(Box::new(Expression::Variable("var")))))
         );
         assert_eq!(
-            expr(" (a +  b ) - 3"),
+            expr(" (a +  b ) - 5"),
             Ok((
                 "",
                 Expression::Subtraction(
                     Box::new(Expression::Addition(
                         Box::new(Expression::Variable("a")),
-                        Box::new(Expression::Variable("b"))
+                        Box::new(Expression::Variable("b")),
                     )),
-                    Box::new(Expression::Constant(3))
+                    Box::new(Expression::Constant(5)),
                 )
             ))
         );
@@ -233,7 +233,7 @@ mod test {
                         Box::new(Expression::Constant(4)),
                         Box::new(Expression::Minus(Box::new(Expression::Variable(
                             "var_name"
-                        ))))
+                        )))),
                     )),
                     Box::new(Expression::Constant(6)),
                 )
@@ -247,8 +247,8 @@ mod test {
                     Box::new(Expression::Constant(2)),
                     Box::new(Expression::Addition(
                         Box::new(Expression::Constant(3)),
-                        Box::new(Expression::Constant(4))
-                    ))
+                        Box::new(Expression::Constant(4)),
+                    )),
                 )
             ))
         );
@@ -260,14 +260,14 @@ mod test {
                     Box::new(Expression::Division(
                         Box::new(Expression::Multiplication(
                             Box::new(Expression::Constant(2)),
-                            Box::new(Expression::Constant(2))
+                            Box::new(Expression::Constant(2)),
                         )),
                         Box::new(Expression::Subtraction(
                             Box::new(Expression::Constant(5)),
-                            Box::new(Expression::Constant(1))
+                            Box::new(Expression::Constant(1)),
                         )),
                     )),
-                    Box::new(Expression::Constant(3))
+                    Box::new(Expression::Constant(3)),
                 )
             ))
         );
@@ -282,11 +282,11 @@ mod test {
                             Box::new(Expression::Constant(2)),
                             Box::new(Expression::Subtraction(
                                 Box::new(Expression::Constant(5)),
-                                Box::new(Expression::Variable("c"))
+                                Box::new(Expression::Variable("c")),
                             )),
                         )),
                     )),
-                    Box::new(Expression::Constant(3))
+                    Box::new(Expression::Constant(3)),
                 )
             ))
         );

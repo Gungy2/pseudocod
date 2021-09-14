@@ -12,12 +12,19 @@ use nom::{
 pub type Block<'a> = Vec<Instruction<'a>>;
 
 #[derive(PartialEq, Clone, Debug)]
+pub enum WhileType {
+    While,
+    DoWhile,
+    Repeat,
+}
+
+#[derive(PartialEq, Clone, Debug)]
 pub enum Instruction<'a> {
     Read(Vec<&'a str>),
     Write(Expression<'a>),
     Assignment(&'a str, Expression<'a>),
     If(Expression<'a>, Block<'a>, Option<Block<'a>>),
-    While(Expression<'a>, Block<'a>),
+    While(WhileType, Expression<'a>, Block<'a>),
     For {
         variable: &'a str,
         start_expr: Expression<'a>,
@@ -41,7 +48,6 @@ fn read(i: &str) -> IResult<&str, Instruction> {
 }
 
 fn write(i: &str) -> IResult<&str, Instruction> {
-    dbg!(i);
     map(
         preceded(delimited(space0, tag("scrie"), space1), expr),
         Instruction::Write,
@@ -68,6 +74,8 @@ fn instruction<'a>(
             assignment,
             if_instr(indent),
             while_instr(indent),
+            do_while_instr(indent),
+            repeat_instr(indent),
             for_instr(indent),
         ))(i)
     }
@@ -97,7 +105,31 @@ fn while_instr<'a>(
             preceded(tuple((tag("cat"), space1, tag("timp"), space1)), expr),
             preceded(terminated(tag("executa"), space0), block(indent + 1)),
         ),
-        |(expr, block)| Instruction::While(expr, block),
+        |(expr, block)| Instruction::While(WhileType::While, expr, block),
+    )
+}
+
+fn do_while_instr<'a>(
+    indent: usize,
+) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, nom::error::Error<&'a str>> {
+    map(
+        pair(
+            preceded(terminated(tag("executa"), space0), block(indent + 1)),
+            preceded(tuple((indentation(indent), tag("cat"), space1, tag("timp"), space1)), expr),
+        ),
+        |(block, expr)| Instruction::While(WhileType::DoWhile, expr, block),
+    )
+}
+
+fn repeat_instr<'a>(
+    indent: usize,
+) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, nom::error::Error<&'a str>> {
+    map(
+        pair(
+            preceded(terminated(tag("repeta"), space0), block(indent + 1)),
+            preceded(tuple((indentation(indent), tag("pana"), space1, tag("cand"), space1)), expr),
+        ),
+        |(block, expr)| Instruction::While(WhileType::Repeat, expr, block),
     )
 }
 
@@ -173,7 +205,7 @@ mod test {
                 "",
                 Instruction::Write(Expression::Addition(
                     Box::new(Expression::Constant(6)),
-                    Box::new(Expression::Constant(5))
+                    Box::new(Expression::Constant(5)),
                 ))
             ))
         );
@@ -184,9 +216,9 @@ mod test {
                 Instruction::Write(Expression::Subtraction(
                     Box::new(Expression::Addition(
                         Box::new(Expression::Variable("a")),
-                        Box::new(Expression::Variable("b"))
+                        Box::new(Expression::Variable("b")),
                     )),
-                    Box::new(Expression::Constant(3))
+                    Box::new(Expression::Constant(3)),
                 ))
             ))
         );
@@ -197,9 +229,9 @@ mod test {
                 Instruction::Write(Expression::Addition(
                     Box::new(Expression::Multiplication(
                         Box::new(Expression::Constant(3)),
-                        Box::new(Expression::Constant(4))
+                        Box::new(Expression::Constant(4)),
                     )),
-                    Box::new(Expression::Variable("var"))
+                    Box::new(Expression::Variable("var")),
                 ))
             ))
         );
@@ -219,8 +251,8 @@ mod test {
                     "var12",
                     Expression::Addition(
                         Box::new(Expression::Constant(6)),
-                        Box::new(Expression::Constant(5))
-                    )
+                        Box::new(Expression::Constant(5)),
+                    ),
                 )
             ))
         );
@@ -234,9 +266,9 @@ mod test {
                         Box::new(Expression::Constant(5)),
                         Box::new(Expression::Multiplication(
                             Box::new(Expression::Variable("x")),
-                            Box::new(Expression::Variable("y"))
-                        ))
-                    )
+                            Box::new(Expression::Variable("y")),
+                        )),
+                    ),
                 )
             ))
         );
@@ -251,7 +283,7 @@ mod test {
                 Instruction::If(
                     Expression::Constant(1),
                     vec![Instruction::Write(Expression::Constant(15))],
-                    None
+                    None,
                 )
             ))
         );
@@ -262,13 +294,13 @@ mod test {
                 Instruction::If(
                     Expression::Addition(
                         Box::new(Expression::Constant(5)),
-                        Box::new(Expression::Constant(5))
+                        Box::new(Expression::Constant(5)),
                     ),
                     vec![
                         Instruction::Write(Expression::Constant(10)),
-                        Instruction::Write(Expression::Constant(16))
+                        Instruction::Write(Expression::Constant(16)),
                     ],
-                    None
+                    None,
                 )
             ))
         );
@@ -284,9 +316,9 @@ mod test {
                             Instruction::Write(Expression::Constant(5)),
                             Instruction::Write(Expression::Constant(6)),
                         ],
-                        None
+                        None,
                     )],
-                    None
+                    None,
                 )
             ))
         );
@@ -299,12 +331,12 @@ mod test {
                     vec![
                         Instruction::If(
                             Expression::Constant(2),
-                            vec![Instruction::Write(Expression::Constant(5)),],
-                            None
+                            vec![Instruction::Write(Expression::Constant(5))],
+                            None,
                         ),
                         Instruction::Write(Expression::Constant(6)),
                     ],
-                    None
+                    None,
                 )
             ))
         );
@@ -319,12 +351,12 @@ mod test {
                     vec![
                         Instruction::If(
                             Expression::Constant(2),
-                            vec![Instruction::Write(Expression::Constant(5)),],
-                            None
+                            vec![Instruction::Write(Expression::Constant(5))],
+                            None,
                         ),
                         Instruction::Write(Expression::Constant(6)),
                     ],
-                    Some(vec![Instruction::Write(Expression::Constant(1))])
+                    Some(vec![Instruction::Write(Expression::Constant(1))]),
                 )
             ))
         );
@@ -337,11 +369,12 @@ mod test {
             Ok((
                 "",
                 Instruction::While(
+                    WhileType::While,
                     Expression::Constant(1),
                     vec![
                         Instruction::Write(Expression::Constant(2)),
-                        Instruction::Write(Expression::Constant(4))
-                    ]
+                        Instruction::Write(Expression::Constant(4)),
+                    ],
                 )
             ))
         );
@@ -350,11 +383,79 @@ mod test {
             Ok((
                 "",
                 Instruction::While(
+                    WhileType::While,
                     Expression::Constant(1),
                     vec![Instruction::While(
+                        WhileType::While,
                         Expression::Constant(2),
-                        vec![Instruction::Write(Expression::Constant(1)),]
-                    )]
+                        vec![Instruction::Write(Expression::Constant(1))],
+                    )],
+                )
+            ))
+        );
+    }
+
+    #[test]
+    fn do_while_test() {
+        assert_eq!(
+            do_while_instr(0)("executa\n  scrie x\n  scrie 2\ncat timp 1"),
+            Ok((
+                "",
+                Instruction::While(
+                    WhileType::DoWhile,
+                    Expression::Constant(1),
+                    vec![
+                        Instruction::Write(Expression::Variable("x")),
+                        Instruction::Write(Expression::Constant(2)),
+                    ],
+                )
+            ))
+        );
+        assert_eq!(
+            do_while_instr(0)("executa\n  executa\n    scrie x\n  cat timp m\ncat timp 1"),
+            Ok((
+                "",
+                Instruction::While(
+                    WhileType::DoWhile,
+                    Expression::Constant(1),
+                    vec![Instruction::While(
+                        WhileType::DoWhile,
+                        Expression::Variable("m"),
+                        vec![Instruction::Write(Expression::Variable("x"))],
+                    )],
+                )
+            ))
+        );
+    }
+
+    #[test]
+    fn repeat_test() {
+        assert_eq!(
+            repeat_instr(0)("repeta\n  scrie x\n  scrie 5\npana cand 1"),
+            Ok((
+                "",
+                Instruction::While(
+                    WhileType::Repeat,
+                    Expression::Constant(1),
+                    vec![
+                        Instruction::Write(Expression::Variable("x")),
+                        Instruction::Write(Expression::Constant(5)),
+                    ],
+                )
+            ))
+        );
+        assert_eq!(
+            repeat_instr(0)("repeta\n  repeta\n    scrie 13\n  pana cand m\npana cand 1"),
+            Ok((
+                "",
+                Instruction::While(
+                    WhileType::Repeat,
+                    Expression::Constant(1),
+                    vec![Instruction::While(
+                        WhileType::Repeat,
+                        Expression::Variable("m"),
+                        vec![Instruction::Write(Expression::Constant(13))],
+                    )],
                 )
             ))
         );
@@ -371,7 +472,7 @@ mod test {
                     start_expr: Expression::Constant(1),
                     end_expr: Expression::Constant(2),
                     step: Expression::Constant(1),
-                    block: vec![Instruction::Write(Expression::Variable("x"))]
+                    block: vec![Instruction::Write(Expression::Variable("x"))],
                 }
             ))
         );
@@ -384,7 +485,7 @@ mod test {
                     start_expr: Expression::Constant(0),
                     end_expr: Expression::Constant(5),
                     step: Expression::Constant(2),
-                    block: vec![Instruction::Write(Expression::Variable("var"))]
+                    block: vec![Instruction::Write(Expression::Variable("var"))],
                 }
             ))
         );

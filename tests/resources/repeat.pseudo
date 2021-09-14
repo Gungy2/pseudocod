@@ -1,0 +1,5 @@
+x <- 0
+repeta
+  scrie x
+  x <- x + 1
+pana cand x
