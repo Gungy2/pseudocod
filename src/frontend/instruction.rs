@@ -170,7 +170,7 @@ fn for_instr<'a, E: ParseError<&'a str>>(
                     block,
                 }
             } else {
-                panic!("Invalid assignment in for loop!")
+                panic!("Intializare invalida in structura repetitiva!")
             }
         },
     )

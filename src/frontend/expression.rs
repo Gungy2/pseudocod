@@ -42,7 +42,7 @@ impl From<&str> for OrderType {
             "=" => OrderType::Equal,
             ">=" => OrderType::GreaterOrEqual,
             ">" => OrderType::Greater,
-            _ => panic!("Invalid Operator"),
+            _ => panic!("Operator invalid!"),
         }
     }
 }

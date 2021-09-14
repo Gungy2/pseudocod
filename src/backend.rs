@@ -85,17 +85,34 @@ impl<'a> Instruction<'a> {
             } => {
                 let initial = start_expr.evaluate(execution_context);
                 execution_context.integers.insert(variable, initial);
-                while *execution_context.integers.get(variable).unwrap()
-                    != end_expr.evaluate(execution_context)
-                {
-                    block
-                        .iter()
-                        .for_each(|instr| instr.execute(execution_context));
-                    let step = step.evaluate(execution_context);
-                    execution_context
-                        .integers
-                        .entry(variable)
-                        .and_modify(|e| *e += step);
+                let step_value = step.evaluate(execution_context);
+                if step_value >= 0 {
+                    while *execution_context.integers.get(variable).unwrap()
+                        <= end_expr.evaluate(execution_context)
+                    {
+                        block
+                            .iter()
+                            .for_each(|instr| instr.execute(execution_context));
+                        execution_context
+                            .integers
+                            .entry(variable)
+                            .and_modify(|e| *e += step_value);
+                        if step.evaluate(execution_context) != step_value {
+                            panic!("Pasul structurii repetitive trebuie sa fie constant!");
+                        }
+                    }
+                } else {
+                    while *execution_context.integers.get(variable).unwrap()
+                        >= end_expr.evaluate(execution_context)
+                    {
+                        block
+                            .iter()
+                            .for_each(|instr| instr.execute(execution_context));
+                        execution_context
+                            .integers
+                            .entry(variable)
+                            .and_modify(|e| *e += step);
+                    }
                 }
             }
         }
@@ -110,7 +127,7 @@ impl<'a> Expression<'a> {
                 let x = *execution_context
                     .integers
                     .get(var)
-                    .unwrap_or_else(|| panic!("Variable {} not defined!", var));
+                    .unwrap_or_else(|| panic!("Variabila {} nu a fost definita!", var));
                 x
             }
             Expression::Minus(expr) => {
@@ -136,7 +153,7 @@ impl<'a> Expression<'a> {
                 let val1 = expr1.evaluate(execution_context);
                 let val2 = expr2.evaluate(execution_context);
                 if val2 == 0 {
-                    panic!("Cannot divide by 0");
+                    panic!("Impartirea la 0 este imposibila!");
                 }
                 val1 / val2
             }
@@ -144,7 +161,7 @@ impl<'a> Expression<'a> {
                 let val1 = expr1.evaluate(execution_context);
                 let val2 = expr2.evaluate(execution_context);
                 if val2 == 0 {
-                    panic!("Cannot divide by 0");
+                    panic!("Impartirea la 0 este imposibila!");
                 }
                 val1 % val2
             }
