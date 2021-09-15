@@ -27,11 +27,12 @@ impl<'a> Instruction<'a> {
     fn execute(&self, execution_context: &mut ExecutionContext<'a>) {
         match self {
             Instruction::Read(vars) => {
-                let mut input = String::new();
                 for var in vars.iter() {
+                    let mut input = String::new();
                     std::io::stdin()
                         .read_line(&mut input)
                         .expect("Could not read input!");
+                    dbg!(&input);
                     let value: i32 = input.trim().parse().expect("Expected an integer!");
                     execution_context.integers.insert(var, value);
                 }

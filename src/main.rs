@@ -37,5 +37,5 @@ fn main() {
     };
     println!("Se executa...");
     execute_program(&program, &mut execution_context);
-    println!("\nGata!");
+    println!("Gata!");
 }

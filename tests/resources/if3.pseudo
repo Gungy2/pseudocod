@@ -1,4 +1,6 @@
 daca 1 atunci
-  daca 2 atunci
+  daca 0 atunci
     scrie 5
   scrie 6
+altfel
+  scrie 1
