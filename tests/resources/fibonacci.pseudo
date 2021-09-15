@@ -1,14 +1,15 @@
+scrie 'Introduceti n:'
 citeste n
 daca n = 0 atunci
-  scrie 0
+  scrie 'fib(', n, ') = ', 0
 altfel
   daca n = 1 atunci
-    scrie 1
+    scrie 'fib(', n, ') = ', 1
   altfel
     x <- 0
     y <- 1
-    pentru i <- 0, n - 1 executa
+    pentru i <- 0, n - 2 executa
       tmp <- x
       x <- y
       y <- tmp + x
-    scrie y
+    scrie 'fib(', n, ') = ', y

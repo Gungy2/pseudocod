@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 
 use crate::frontend::expression::{Expression, OrderType};
-use crate::frontend::instruction::{Instruction, WhileType};
+use crate::frontend::instruction::{Instruction, WhileType, Writable};
 
 pub struct ExecutionContext<'a> {
     pub integers: HashMap<&'a str, i32>,
@@ -40,8 +40,14 @@ impl<'a> Instruction<'a> {
                 let val = expr.evaluate(execution_context);
                 execution_context.integers.insert(var, val);
             }
-            Instruction::Write(expr) => {
-                println!("{}", expr.evaluate(execution_context));
+            Instruction::Write(writable) => {
+                writable.iter().for_each(|writable| match writable {
+                    Writable::Expression(expr) => {
+                        print!("{}", expr.evaluate(execution_context))
+                    }
+                    Writable::String(str) => print!("{}", str),
+                });
+                println!();
             }
             Instruction::If(cond, if_block, else_block) => {
                 let block = if cond.evaluate(execution_context) != 0 {
@@ -111,7 +117,7 @@ impl<'a> Instruction<'a> {
                         execution_context
                             .integers
                             .entry(variable)
-                            .and_modify(|e| *e += step);
+                            .and_modify(|e| *e += step_value);
                     }
                 }
             }
