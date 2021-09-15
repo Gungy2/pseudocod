@@ -13,12 +13,11 @@ use nom::{
 
 fn main() {
     // Read contents of the file
-    let file_name = env::args().nth(1).expect("Provide a file name");
+    let file_name = env::args().nth(1).expect("Introduceti numele fisierului!");
     let path = Path::new(&file_name);
-    let mut i = fs::read_to_string(path).expect("Invalid file");
+    let mut i = fs::read_to_string(path).expect("Fisier invalid!");
     i.insert(0, '\n');
     let i: &str = &i;
-    dbg!(i);
 
     // Parse the contents of the file
     let result = instruction::program::<VerboseError<&str>>(i);
@@ -28,7 +27,7 @@ fn main() {
             let error_message = convert_error(i, e);
             panic!("{}", error_message);
         };
-        panic!("Program could not compile!");
+        panic!("Programul nu este valid!");
     });
     dbg!(&program);
 
@@ -36,7 +35,7 @@ fn main() {
     let mut execution_context = ExecutionContext {
         integers: HashMap::new(),
     };
-    println!("Executing...");
+    println!("Se executa...");
     execute_program(&program, &mut execution_context);
-    println!("\nDone!");
+    println!("\nGata!");
 }

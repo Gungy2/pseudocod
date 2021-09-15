@@ -1,14 +1,14 @@
 use super::expression::{expr, id, Expression};
 use nom::bytes::complete::take_until;
-use nom::character::complete::multispace0;
-use nom::combinator::eof;
+use nom::character::complete::{multispace0, multispace1};
+use nom::combinator::{eof, fail, success};
 use nom::error::ParseError;
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::{char, line_ending, space0, space1},
+    character::complete::{char, space0, space1},
     combinator::{map, opt},
-    multi::{count, many1, separated_list1},
+    multi::{many1, separated_list1},
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
 };
@@ -213,7 +213,14 @@ pub fn program<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Block, E
 fn indentation<'a, E: ParseError<&'a str>>(
     indent: usize,
 ) -> impl FnMut(&'a str) -> IResult<&str, (), E> {
-    map(pair(line_ending, count(char(' '), 2 * indent)), |_| ())
+    move |i: &'a str| {
+        let (i, spaces) = multispace1::<&'a str, E>(i)?;
+        if !spaces.ends_with(&format!("\n{}", " ".repeat(2 * indent))) {
+            fail(i)
+        } else {
+            success(())(i)
+        }
+    }
 }
 
 #[cfg(test)]
