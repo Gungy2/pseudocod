@@ -1,4 +1,4 @@
-# Pseudocode
+# Pseudocode ![Rust](https://github.com/Gungy2/pseudocode/actions/workflows/rust.yml/badge.svg)
 Simple interpreter for the [pseudocode langauge](https://www.pbinfo.ro/articole/23972/limbajul-pseudocod "Language Specification") used to teach programming in Romanian high schools. It is made entirely in Rust, using the Nom parser.
 
 ## Usage
