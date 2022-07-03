@@ -1,0 +1,14 @@
+[package]
+name = "interpreter"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "interpreter"
+path = "src/lib.rs"
+
+[dependencies]
+nom = "7.1"
+
+[dev-dependencies]
+test-case = "2.1"

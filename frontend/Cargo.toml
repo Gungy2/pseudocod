@@ -1,0 +1,8 @@
+[package]
+name = "frontend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+yew = "0.19"
+interpreter = { path = "../interpreter" }

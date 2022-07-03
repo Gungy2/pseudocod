@@ -1,4 +1,4 @@
-use pseudocod::interpret;
+use interpreter::interpret;
 use std::{env, fs, path::Path};
 
 fn main() {

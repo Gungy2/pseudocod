@@ -3,7 +3,7 @@ use std::{
     io::Cursor,
 };
 
-use pseudocod::interpret;
+use interpreter::interpret;
 use test_case::test_case;
 
 #[test_case("writes.pseudo", "4\n5\n13\n", ""; "write")]

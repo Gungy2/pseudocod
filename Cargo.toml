@@ -1,14 +1,6 @@
-[package]
-name = "pseudocod"
-version = "0.1.0"
-edition = "2021"
+[workspace]
 
-[lib]
-name = "pseudocod"
-path = "src/lib.rs"
-
-[dependencies]
-nom = "7.1"
-
-[dev-dependencies]
-test-case = "2.1"
+members = [
+    "interpreter",
+    "frontend"
+]
