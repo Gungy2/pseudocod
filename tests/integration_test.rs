@@ -1,3 +1,9 @@
+use std::{
+    fs::read_to_string,
+    io::Cursor,
+};
+
+use pseudocod::interpret;
 use test_case::test_case;
 
 #[test_case("writes.pseudo", "4\n5\n13\n", ""; "write")]
@@ -10,15 +16,15 @@ use test_case::test_case;
 #[test_case("while.pseudo", "5\n4\n3\n2\n", ""; "while instruction")]
 #[test_case("for.pseudo", "0\n2\n4\n6\n8\n10\n12\n", ""; "for instruction")]
 #[test_case("fibonacci.pseudo", "Introduceti n:\nfib(10) = 55\n", "10"; "fibonacci")]
-fn integration_test(file_name: &str, out: &str, stdin: &str) {
-    let mut cmd = assert_cmd::Command::cargo_bin("pseudocod").unwrap();
+fn integration_test(file_name: &str, output: &str, input: &'static str) {
     let path = std::path::Path::new("tests")
         .join("resources")
         .join(file_name);
-    let file = path.to_str().unwrap();
 
-    let assert = cmd.arg(file).write_stdin(stdin).assert();
-    assert
-        .success()
-        .stdout(format!("Se executa...\n{}Gata!\n", out));
+    let program_string = read_to_string(path).expect("Could not read file");
+    let mut reader = Cursor::new(input);
+    let mut writer = Cursor::new(Vec::new());
+
+    interpret(&mut reader, &mut writer, &program_string).unwrap();
+    assert_eq!(std::str::from_utf8(&writer.into_inner()).unwrap(), output);
 }

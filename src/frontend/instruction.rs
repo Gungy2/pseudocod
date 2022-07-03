@@ -1,4 +1,5 @@
 use super::expression::{expr, id, Expression};
+use nom::Finish;
 use nom::bytes::complete::take_until;
 use nom::character::complete::{multispace0, multispace1};
 use nom::combinator::{eof, fail, success};
@@ -12,6 +13,7 @@ use nom::{
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
 };
+use nom::multi::many0;
 
 pub type Block<'a> = Vec<Instruction<'a>>;
 
@@ -95,7 +97,6 @@ fn instruction<'a, E: ParseError<&'a str>>(
     indent: usize,
 ) -> impl Fn(&'a str) -> IResult<&str, Instruction<'a>, E> {
     move |i: &'a str| {
-        dbg!(&i);
         alt((
             read,
             write,
@@ -115,10 +116,10 @@ fn if_instr<'a, E: ParseError<&'a str>>(
     map(
         tuple((
             preceded(terminated(tag("daca"), space0), expr),
-            preceded(terminated(tag("atunci"), space0), block(indent + 1)),
+            preceded(terminated(tag("atunci"), space0), block(Some(indent + 1))),
             opt(preceded(
                 terminated(pair(indentation(indent), tag("altfel")), space0),
-                block(indent + 1),
+                block(Some(indent + 1)),
             )),
         )),
         |(expr, if_block, else_block)| Instruction::If(expr, if_block, else_block),
@@ -131,7 +132,7 @@ fn while_instr<'a, E: ParseError<&'a str>>(
     map(
         pair(
             preceded(tuple((tag("cat"), space1, tag("timp"), space1)), expr),
-            preceded(terminated(tag("executa"), space0), block(indent + 1)),
+            preceded(terminated(tag("executa"), space0), block(Some(indent + 1))),
         ),
         |(expr, block)| Instruction::While(WhileType::While, expr, block),
     )
@@ -142,7 +143,10 @@ fn do_while_instr<'a, E: ParseError<&'a str>>(
 ) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, E> {
     map(
         pair(
-            preceded(terminated(tag("executa"), space0), block(indent + 1)),
+            preceded(
+                terminated(tag("executa"), space0),
+                block(Some(indent + 1))
+            ),
             preceded(
                 tuple((indentation(indent), tag("cat"), space1, tag("timp"), space1)),
                 expr,
@@ -157,7 +161,10 @@ fn repeat_instr<'a, E: ParseError<&'a str>>(
 ) -> impl FnMut(&'a str) -> IResult<&str, Instruction<'a>, E> {
     map(
         pair(
-            preceded(terminated(tag("repeta"), space0), block(indent + 1)),
+            preceded(
+                terminated(tag("repeta"), space0),
+                block(Some(indent + 1))
+            ),
             preceded(
                 tuple((
                     indentation(indent),
@@ -181,7 +188,7 @@ fn for_instr<'a, E: ParseError<&'a str>>(
             preceded(tuple((tag("pentru"), space1)), assignment),
             preceded(delimited(space0, char(','), space0), expr),
             opt(preceded(delimited(space0, char(','), space0), expr)),
-            preceded(terminated(tag("executa"), space0), block(indent + 1)),
+            preceded(terminated(tag("executa"), space0), block(Some(indent + 1))),
         )),
         |(assignment, end_expr, step, block)| {
             let step = step.unwrap_or(Expression::Constant(1));
@@ -201,24 +208,36 @@ fn for_instr<'a, E: ParseError<&'a str>>(
 }
 
 fn block<'a, E: ParseError<&'a str>>(
-    indent: usize,
+    maybe_indent: Option<usize>,
 ) -> impl FnMut(&'a str) -> IResult<&'a str, Block<'a>, E> {
-    many1(preceded(indentation(indent), instruction(indent)))
+    move |i: &'a str| {
+        if let Some(indent) = maybe_indent {
+            many1(preceded(indentation(indent), instruction(indent)))(i)
+        } else {
+            map(pair(
+                preceded(multispace0, instruction(0)),
+                many0(preceded(indentation(0), instruction(0)))
+            ), |(first, mut rest)| {
+                rest.insert(0, first);
+                rest
+            })(i)
+        }
+    }
 }
 
-pub fn program<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Block, E> {
-    terminated(block(0), pair(multispace0, eof))(i)
+pub fn program<'a, E: ParseError<&'a str>>(i: &'a str) -> Result<(&str, Block), E> {
+    terminated(block(None), pair(multispace0, eof))(i).finish()
 }
 
 fn indentation<'a, E: ParseError<&'a str>>(
     indent: usize,
 ) -> impl FnMut(&'a str) -> IResult<&str, (), E> {
     move |i: &'a str| {
-        let (i, spaces) = multispace1::<&'a str, E>(i)?;
-        if !spaces.ends_with(&format!("\n{}", " ".repeat(2 * indent))) {
-            fail(i)
-        } else {
+        let (i, spaces) = multispace1(i)?;
+        if spaces.ends_with(&format!("\n{}", " ".repeat(2 * indent))) {
             success(())(i)
+        } else {
+            fail(i)
         }
     }
 }

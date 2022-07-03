@@ -1,14 +1,14 @@
 [package]
 name = "pseudocod"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "pseudocod"
+path = "src/lib.rs"
 
 [dependencies]
-nom = "7.0"
+nom = "7.1"
 
 [dev-dependencies]
-test-case = "1.2"
-cargo-tarpaulin = "0.18"
-assert_cmd = "2.0"
+test-case = "2.1"

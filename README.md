@@ -1,13 +1,17 @@
-# Pseudocode ![Rust](https://github.com/Gungy2/pseudocode/actions/workflows/rust.yml/badge.svg)
+# Pseudocod ![Rust](https://github.com/Gungy2/pseudocode/actions/workflows/rust.yml/badge.svg)
+
 Simple interpreter for the [pseudocode langauge](https://www.pbinfo.ro/articole/23972/limbajul-pseudocod "Language Specification") used to teach programming in Romanian high schools. It is made entirely in Rust, using the Nom parser.
 
 ## Usage
+
 In order to run the interpreter with a file, execute the command:
+
 ```bash
 cargo run -- filename
 ```
 
 ## Example of pseudocode
+
 ```
 scrie 'Introduceti n:'
 citeste n
@@ -27,4 +31,5 @@ altfel
 ```
 
 ## Using it for teaching
+
 If you are a teacher that wants to use the tool, feel free to contact me and I will do my best to add any features that you feel are missing!

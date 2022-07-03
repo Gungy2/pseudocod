@@ -122,6 +122,7 @@ pub fn expr<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&str, Expression,
 
 #[cfg(test)]
 mod test {
+    use nom::combinator::eof;
     use super::*;
     use nom::error::Error;
 
@@ -346,6 +347,7 @@ mod test {
                 )
             ))
         );
+        assert!(expr::<Error<&str>>("(1 + 4 - 4()").is_err());
     }
 
     #[test]
@@ -390,5 +392,6 @@ mod test {
                 )
             ))
         );
+        assert!(pair(expr::<Error<&str>>, eof)("2 >").is_err());
     }
 }
