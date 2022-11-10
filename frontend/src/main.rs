@@ -1,12 +1,17 @@
+mod editor;
+
 use yew::prelude::*;
 
 #[function_component(App)]
 fn app() -> Html {
     html! {
-        <h1 class={classes!("text-red-500")}>{ "Hello world!" } </h1>
+        <main>
+            <editor::Editor />
+        </main>
     }
 }
 
 fn main() {
+    wasm_logger::init(wasm_logger::Config::default());
     yew::start_app::<App>();
 }

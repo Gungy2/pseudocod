@@ -9,7 +9,7 @@ use backend::ExecutionContext;
 use nom::error::VerboseError;
 
 pub fn interpret<'a>(
-    input: &'a mut dyn BufRead, 
+    input: &'a mut dyn BufRead,
     output: &'a mut dyn Write, 
     program_string: &'a str
 ) -> Result<(), InterpreterError<'a>> {
